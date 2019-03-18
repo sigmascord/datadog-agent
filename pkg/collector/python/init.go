@@ -24,6 +24,28 @@ import (
 
 // #include "datadog_agent_six.h"
 // #cgo LDFLAGS: -ldatadog-agent-six -ldl
+/*
+void GetVersion(char **);
+void GetHostname(char **);
+void GetClusterName(char **);
+void Headers(char **);
+void GetConfig(char*, char **);
+void LogMessage(char *, int);
+
+void initDatadogAgentModule(six_t *six) {
+	set_get_version_cb(six, GetVersion);
+	set_get_hostname_cb(six, GetHostname);
+	set_get_clustername_cb(six, GetClusterName);
+	set_headers_cb(six, Headers);
+	set_log_cb(six, LogMessage);
+	set_get_config_cb(six, GetConfig);
+
+	//C.set_set_external_tags_cb(six, cb_set_external_tags_t);
+}
+*/
+import (
+	"C"
+)
 import "C"
 
 var (
@@ -113,6 +135,8 @@ func Initialize(paths ...string) error {
 
 	// TODO: query PythonPath
 	// TODO: query PythonHome
+
+	C.initDatadogAgentModule(six)
 	return nil
 }
 
