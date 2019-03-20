@@ -15,7 +15,7 @@ import (
 var (
 	// AgentCmd is the root command
 	AgentCmd = &cobra.Command{
-		Use:   "agent [command]",
+		Use:   "datadog-agent [command]",
 		Short: "Datadog Agent at your service.",
 		Long: `
 The Datadog Agent faithfully collects events and metrics and brings them
