@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math"
 	"net/http"
@@ -238,6 +239,70 @@ func TestProcessTrace(t *testing.T) {
 		assert.EqualValues(t, 4, stats.TracesPriority1)
 		assert.EqualValues(t, 5, stats.TracesPriority2)
 	})
+}
+
+func TestTraceThroughput(t *testing.T) {
+	t.Skip("not a test")
+
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := NewAgent(ctx, cfg)
+	defer cancel()
+
+	f, err := os.Open("./testdata/trace1.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var trace pb.Trace
+	if err := json.NewDecoder(f).Decode(&trace); err != nil {
+		t.Fatal(err)
+	}
+
+	exit := make(chan bool)
+	go func() {
+		defer close(exit)
+		for {
+			select {
+			case <-agnt.ServiceExtractor.outServices:
+			case <-agnt.tracePkgChan:
+			case <-agnt.Concentrator.OutStats:
+			case <-exit:
+				return
+			}
+		}
+	}()
+
+	go agnt.Run()
+
+	runTest := func(total int) int {
+		var succeeded, failed int
+		for i := 0; i < total; i++ {
+			tracecp := testutil.CopyTrace(trace)
+			select {
+			case agnt.Receiver.Out <- tracecp:
+				succeeded++
+			default:
+				failed++
+			}
+		}
+		return succeeded * 100 / total
+	}
+
+	var avg int
+	for _, iterations := range []int{
+		1000,
+		10000,
+		100000,
+		500000,
+	} {
+		avg += runTest(iterations)
+	}
+
+	exit <- true
+	<-exit
+
+	t.Logf("Throughput: %d%%", avg/4)
 }
 
 func TestSampling(t *testing.T) {
