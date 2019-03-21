@@ -122,7 +122,7 @@ func TestFormatTrace(t *testing.T) {
 	assert.Contains(result.Meta["sql.query"], "SELECT name FROM people WHERE age = ?")
 }
 
-func TestProcess(t *testing.T) {
+func TestProcessTrace(t *testing.T) {
 	t.Run("Replacer", func(t *testing.T) {
 		// Ensures that for "sql" type spans:
 		// • obfuscator runs before replacer
@@ -147,7 +147,9 @@ func TestProcess(t *testing.T) {
 			Start:    now.Add(-time.Second).UnixNano(),
 			Duration: (500 * time.Millisecond).Nanoseconds(),
 		}
-		agnt.Process(pb.Trace{span})
+
+		go func() { <-agnt.tracePkgChan }()
+		agnt.processTrace(pb.Trace{span})
 
 		assert := assert.New(t)
 		assert.Equal("SELECT name FROM people WHERE age = ? ...", span.Resource)
@@ -179,11 +181,13 @@ func TestProcess(t *testing.T) {
 		stats := agnt.Receiver.Stats.GetTagStats(info.Tags{})
 		assert := assert.New(t)
 
-		agnt.Process(pb.Trace{spanValid})
+		go func() { <-agnt.tracePkgChan }()
+		agnt.processTrace(pb.Trace{spanValid})
 		assert.EqualValues(0, stats.TracesFiltered)
 		assert.EqualValues(0, stats.SpansFiltered)
 
-		agnt.Process(pb.Trace{spanInvalid, spanInvalid})
+		go func() { <-agnt.tracePkgChan }()
+		agnt.processTrace(pb.Trace{spanInvalid, spanInvalid})
 		assert.EqualValues(1, stats.TracesFiltered)
 		assert.EqualValues(2, stats.SpansFiltered)
 	})
@@ -223,7 +227,8 @@ func TestProcess(t *testing.T) {
 			if key != sampler.PriorityNone {
 				sampler.SetSamplingPriority(span, key)
 			}
-			agnt.Process(pb.Trace{span})
+			go func() { <-agnt.tracePkgChan }()
+			agnt.processTrace(pb.Trace{span})
 		}
 
 		stats := agnt.Receiver.Stats.GetTagStats(info.Tags{})
@@ -555,7 +560,7 @@ func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		ta.Process(testutil.RandomTrace(10, 8))
+		ta.processTrace(testutil.RandomTrace(10, 8))
 	}
 }
 

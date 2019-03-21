@@ -93,8 +93,8 @@ func NewHTTPReceiver(
 	}
 }
 
-// Run starts doing the HTTP server and is ready to receive traces
-func (r *HTTPReceiver) Run() {
+// Start starts doing the HTTP server and is ready to receive traces
+func (r *HTTPReceiver) Start() {
 	// FIXME[1.x]: remove all those legacy endpoints + code that goes with it
 	http.HandleFunc("/spans", r.httpHandleWithVersion(v01, r.handleTraces))
 	http.HandleFunc("/services", r.httpHandleWithVersion(v01, r.handleServices))
@@ -114,6 +114,9 @@ func (r *HTTPReceiver) Run() {
 	if err := r.Listen(addr, ""); err != nil {
 		osutil.Exitf("%v", err)
 	}
+
+	// update the data served by expvar so that we don't expose a 0 sample rate
+	info.UpdatePreSampler(*r.PreSampler.Stats())
 
 	go r.PreSampler.Run()
 
@@ -170,17 +173,11 @@ func (r *HTTPReceiver) Stop() error {
 	return r.server.Shutdown(ctx)
 }
 
-func (r *HTTPReceiver) httpHandle(fn http.HandlerFunc) http.HandlerFunc {
+func (r *HTTPReceiver) httpHandleWithVersion(v Version, f func(Version, http.ResponseWriter, *http.Request)) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		req.Body = NewLimitedReader(req.Body, r.maxRequestBodyLength)
 		defer req.Body.Close()
 
-		fn(w, req)
-	}
-}
-
-func (r *HTTPReceiver) httpHandleWithVersion(v Version, f func(Version, http.ResponseWriter, *http.Request)) http.HandlerFunc {
-	return r.httpHandle(func(w http.ResponseWriter, req *http.Request) {
 		contentType := req.Header.Get("Content-Type")
 		if contentType == "application/msgpack" && (v == v01 || v == v02) {
 			// msgpack is only supported for versions 0.3
@@ -190,7 +187,7 @@ func (r *HTTPReceiver) httpHandleWithVersion(v Version, f func(Version, http.Res
 		}
 
 		f(v, w, req)
-	})
+	}
 }
 
 func (r *HTTPReceiver) replyTraces(v Version, w http.ResponseWriter) {
