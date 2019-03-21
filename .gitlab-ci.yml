@@ -88,6 +88,7 @@ before_script:
 #
 .run_when_testkitchen_triggered: &run_when_testkitchen_triggered
   only:
+    - olivielpeau/test-pin-test-kitchen
     - master
     - tags
     - triggers
